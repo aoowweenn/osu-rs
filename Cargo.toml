@@ -1,0 +1,11 @@
+[package]
+name = "osu"
+version = "0.1.0"
+authors = ["aoowweenn <aoowweenn@gmail.com>"]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies.nom]
+version = '^2.2'
+features = ["regexp", "verbose-errors"]
