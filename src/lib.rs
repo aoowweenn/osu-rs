@@ -3,17 +3,18 @@ extern crate nom;
 
 use nom::{digit, line_ending};
 use nom::IResult::Done;
-//use nom::{space, alphanumeric, multispace};
+use nom::{space, anychar, crlf, multispace};
 
 use std::str::FromStr;
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct Osu {
+pub struct Osu<'a> {
     version: u32,
+    general: General<'a>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Default)]
 struct General<'a> {
     audio_filename: &'a str,
     audio_lead_in:  u32,
@@ -23,24 +24,84 @@ struct General<'a> {
     stack_leniency: f32,
     mode:           u32,
     letterboxin_breaks: bool,
-    widescreen_Storyboard: bool,
+    widescreen_storyboard: bool,
 }
 
-//named!(section_general<&str, General>,
+#[derive(Debug, Default)]
+struct Editor {
+    asdf: u32,
+}
+
+named_args!(value<'a>(key: &'a str)<&'a [u8]>,
+    do_parse!(
+           opt!(multispace)
+        >> tag_s!(key)
+        >> opt!(space)
+        >> char!(':')
+        >> opt!(space)
+        >> val: take_until_s!("\r\n")
+        >> opt!(multispace)
+        >> (val)
+             )
+    );
+
+named!(section_general<&str, General>,
+        do_parse!(
+              opt!(multispace)
+           >> tag_s!("[General]")
+           >> opt!(multispace)
+           /*
+        >> values: permutation!(
+            apply!(value, "AudioFilename"),
+            map_res!(apply!(value, "AudioLeadIn"), FromStr::from_str),
+            map_res!(apply!(value, "PreviewTime"), FromStr::from_str),
+            map_res!(apply!(value, "Countdown"), FromStr::from_str),
+            apply!(value, "SampleSet"),
+            map_res!(apply!(value, "StackLeniency"), FromStr::from_str),
+            map_res!(apply!(value, "Mode"), FromStr::from_str),
+            map_res!(apply!(value, "LetterboxInBreaks"), FromStr::from_str),
+            map_res!(apply!(value, "WidescreenStoryboard"), FromStr::from_str),
+            )
+            */
+        >> (General {
+            /*
+            audio_filename: values.0,
+            audio_lead_in: values.1,
+            preview_time: values.2,
+            countdown: values.3,
+            sample_set: values.4,
+            stack_leniency: values.5,
+            mode: values.6,
+            letterboxin_breaks: values.7,
+            widescreen_storyboard: values.8,
+            */
+            ..Default::default()
+            })
+          )
+        );
+
+named!(section_editor<&str, Editor>,
+        do_parse!(
+           tag_s!("[editor]")
+          >> (Editor {..Default::default()})
+          )
+        );
 
 named!(parse_osu<&str, Osu>, 
     do_parse!(
                     tag_s!("osu file format v")
     >>  version:    map_res!(digit, FromStr::from_str)
     >>              line_ending
-    //>>  general:    section_general
-    >>  (Osu { version: version })
+    >>  sections:   permutation!(call!(section_general), call!(line_ending))
+    >>  (Osu {
+        version: version,
+        general: sections.0,
+        })
     )
 );
 
 #[no_mangle]
-pub extern "C" fn parse_osu_file() -> *const Osu {
-    //"Hello, world\0".as_ptr()
+pub extern "C" fn parse_osu_file<'a>() -> *const Osu<'a> {
     let input = include_str!("../test.osu");
     let res = parse_osu(input);
     match res {
@@ -58,9 +119,10 @@ mod tests {
         let input = include_str!("../test.osu");
         let res = parse_osu(input);
         if let Done(_, osu) = res {
-            println!("{:?}", osu)
+            println!("{:?}", osu);
         }
         else {
+            println!("{:?}", res);
             assert!(false);
         }
     }
