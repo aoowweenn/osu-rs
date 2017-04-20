@@ -3,7 +3,7 @@ extern crate nom;
 
 use nom::{digit, line_ending};
 use nom::IResult::Done;
-use nom::{space, anychar, crlf, multispace};
+use nom::{space, multispace};
 
 use std::str::FromStr;
 use std::collections::HashMap;
@@ -29,89 +29,51 @@ struct General<'a> {
 }
 
 impl<'a> General<'a> {
-    pub fn new<'b>(pairs: Vec<(&'b str, &'b str)>) -> General<'a> {
+    pub fn new(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
         let mut map = HashMap::new();
-        for (ref key, ref val) in pairs.clone() {
+        for (ref key, ref val) in pairs {
             map.insert(key.to_owned(), val.to_owned());
         }
+        let unwrap_get = |x| map.get(x).unwrap();
+        let unwrap_from_str = |x| FromStr::from_str(unwrap_get(x)).unwrap();
         General{
-            audio_filename: map.get("audio_filename").unwrap(),
+            audio_filename: unwrap_get("AudioFilename"),
+            audio_lead_in: unwrap_from_str("AudioLeadIn"),
+            mode: unwrap_from_str("Mode"),
             ..Default::default()
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Default)]
 struct Editor {
     asdf: u32,
 }
 
-named_args!(value<'a>(key: &'a str)<&'a [u8]>,
-    do_parse!(
-           opt!(multispace)
-        >> tag_s!(key)
-        >> opt!(space)
-        >> char!(':')
-        >> opt!(space)
-        >> val: take_until_s!("\r\n")
-        >> opt!(multispace)
-        >> (val)
-             )
-    );
-
 named!(key_value_pair<&str, (&str, &str)>,
     do_parse!(
-                opt!(multispace)
-        >> key: take_until_s!(":")
-        >> val: take_until_s!("\r\n")
+           key: take_until_and_consume_s!(":")
         >> opt!(multispace)
+        >> val: take_until_and_consume_s!("\r\n")
         >> (key, val)
     )
 );
 
 named!(section_general<&str, General>,
         do_parse!(
-              opt!(multispace)
-           >> tag_s!("[General]")
-           >> opt!(multispace)
-           >> pairs: many1!(key_value_pair)
-           /*
-        >> values: permutation!(
-            apply!(value, "AudioFilename"),
-            map_res!(apply!(value, "AudioLeadIn"), FromStr::from_str),
-            map_res!(apply!(value, "PreviewTime"), FromStr::from_str),
-            map_res!(apply!(value, "Countdown"), FromStr::from_str),
-            apply!(value, "SampleSet"),
-            map_res!(apply!(value, "StackLeniency"), FromStr::from_str),
-            map_res!(apply!(value, "Mode"), FromStr::from_str),
-            map_res!(apply!(value, "LetterboxInBreaks"), FromStr::from_str),
-            map_res!(apply!(value, "WidescreenStoryboard"), FromStr::from_str),
-            )
-            */
-        >> (General::new(pairs))
-            /*
-        >> (General {
-            /*
-            audio_filename: values.0,
-            audio_lead_in: values.1,
-            preview_time: values.2,
-            countdown: values.3,
-            sample_set: values.4,
-            stack_leniency: values.5,
-            mode: values.6,
-            letterboxin_breaks: values.7,
-            widescreen_storyboard: values.8,
-            */
-            ..Default::default()
-            })
-            */
+                                tag_s!("[General]")
+           >>                   opt!(multispace)
+           >> pairs_with_end:   many_till!(key_value_pair, line_ending)
+           >> (General::new(pairs_with_end.0))
           )
         );
 
 named!(section_editor<&str, Editor>,
         do_parse!(
-           tag_s!("[editor]")
-          >> (Editor {..Default::default()})
+                                tag_s!("[Editor]")
+           >>                   opt!(multispace)
+           >> pairs_with_end:   many_till!(key_value_pair, line_ending)
+           >> (Editor {..Default::default()})
           )
         );
 
@@ -120,7 +82,8 @@ named!(parse_osu<&str, Osu>,
                     tag_s!("osu file format v")
     >>  version:    map_res!(digit, FromStr::from_str)
     >>              line_ending
-    >>  sections:   permutation!(call!(section_general), call!(line_ending))
+    >>              opt!(multispace)
+    >>  sections:   permutation!(call!(section_general), call!(section_editor))
     >>  (Osu {
         version: version,
         general: sections.0,
