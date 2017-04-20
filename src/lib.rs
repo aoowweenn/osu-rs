@@ -6,6 +6,7 @@ use nom::IResult::Done;
 use nom::{space, anychar, crlf, multispace};
 
 use std::str::FromStr;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -27,6 +28,19 @@ struct General<'a> {
     widescreen_storyboard: bool,
 }
 
+impl<'a> General<'a> {
+    pub fn new<'b>(pairs: Vec<(&'b str, &'b str)>) -> General<'a> {
+        let mut map = HashMap::new();
+        for (ref key, ref val) in pairs.clone() {
+            map.insert(key.to_owned(), val.to_owned());
+        }
+        General{
+            audio_filename: map.get("audio_filename").unwrap(),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct Editor {
     asdf: u32,
@@ -45,11 +59,22 @@ named_args!(value<'a>(key: &'a str)<&'a [u8]>,
              )
     );
 
+named!(key_value_pair<&str, (&str, &str)>,
+    do_parse!(
+                opt!(multispace)
+        >> key: take_until_s!(":")
+        >> val: take_until_s!("\r\n")
+        >> opt!(multispace)
+        >> (key, val)
+    )
+);
+
 named!(section_general<&str, General>,
         do_parse!(
               opt!(multispace)
            >> tag_s!("[General]")
            >> opt!(multispace)
+           >> pairs: many1!(key_value_pair)
            /*
         >> values: permutation!(
             apply!(value, "AudioFilename"),
@@ -63,6 +88,8 @@ named!(section_general<&str, General>,
             map_res!(apply!(value, "WidescreenStoryboard"), FromStr::from_str),
             )
             */
+        >> (General::new(pairs))
+            /*
         >> (General {
             /*
             audio_filename: values.0,
@@ -77,6 +104,7 @@ named!(section_general<&str, General>,
             */
             ..Default::default()
             })
+            */
           )
         );
 
