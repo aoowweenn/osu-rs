@@ -3,7 +3,7 @@ extern crate nom;
 
 use nom::{digit, line_ending};
 use nom::IResult::Done;
-use nom::{space, multispace};
+use nom::multispace;
 
 use std::str::FromStr;
 use std::collections::HashMap;
@@ -30,10 +30,7 @@ struct General<'a> {
 
 impl<'a> General<'a> {
     pub fn new(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
-        let mut map = HashMap::new();
-        for (ref key, ref val) in pairs {
-            map.insert(key.to_owned(), val.to_owned());
-        }
+        let map: HashMap<&str, &str> = pairs.into_iter().collect();
         let unwrap_get = |x| map.get(x).unwrap();
         let unwrap_from_str = |x| FromStr::from_str(unwrap_get(x)).unwrap();
         General{
@@ -91,13 +88,14 @@ named!(parse_osu<&str, Osu>,
     )
 );
 
+#[allow(no_mangle_generic_items)]
 #[no_mangle]
 pub extern "C" fn parse_osu_file<'a>() -> *const Osu<'a> {
     let input = include_str!("../test.osu");
     let res = parse_osu(input);
     match res {
-        Done(_, x) => return &x,
-        _ => return 0 as *const Osu,
+        Done(_, x) => &x,
+        _ => 0 as *const Osu,
     }
 }
 
