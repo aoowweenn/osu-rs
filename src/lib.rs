@@ -35,7 +35,7 @@ struct General<'a> {
 }
 
 impl<'a> General<'a> {
-    pub fn new(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
+    pub fn from_tuples(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
         let map: HashMap<&str, &str> = pairs.into_iter().collect();
         let unwrap_get = |x| map.get(x).unwrap();
         let unwrap_from_str = |x| -> u32 {FromStr::from_str(unwrap_get(x)).unwrap()};
@@ -45,7 +45,7 @@ impl<'a> General<'a> {
             audio_filename: unwrap_get("AudioFilename"),
             audio_lead_in: unwrap_from_str("AudioLeadIn"),
             preview_time: unwrap_from_str("PreviewTime"),
-            countdown: unwrap_from_str("Countdown") == 1,
+            countdown: unwrap_from_str_b("Countdown"),
             sample_set: unwrap_get("SampleSet"),
             stack_leniency: unwrap_from_str_f("StackLeniency"),
             mode: unwrap_from_str("Mode"),
@@ -56,9 +56,13 @@ impl<'a> General<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
-struct Editor {
-    asdf: u32,
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct Editor<'a> {
+    bookmarks: &'a [u32],
+    distance_spacing: f32,
+    beat_divisor: u32,
+    grid_size: u32,
+    timeline_zoom: f32,
 }
 
 named!(key_value_pair<&str, (&str, &str)>,
@@ -75,7 +79,7 @@ named!(section_general<&str, General>,
                                 tag_s!("[General]")
            >>                   opt!(multispace)
            >> pairs_with_end:   many_till!(key_value_pair, line_ending)
-           >> (General::new(pairs_with_end.0))
+           >> (General::from_tuples(pairs_with_end.0))
           )
         );
 
