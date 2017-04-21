@@ -1,3 +1,9 @@
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
+
 #[macro_use]
 extern crate nom;
 
@@ -8,14 +14,14 @@ use nom::multispace;
 use std::str::FromStr;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[repr(C)]
 pub struct Osu<'a> {
     version: u32,
     general: General<'a>,
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Serialize)]
 struct General<'a> {
     audio_filename: &'a str,
     audio_lead_in:  u32,
@@ -32,11 +38,19 @@ impl<'a> General<'a> {
     pub fn new(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
         let map: HashMap<&str, &str> = pairs.into_iter().collect();
         let unwrap_get = |x| map.get(x).unwrap();
-        let unwrap_from_str = |x| FromStr::from_str(unwrap_get(x)).unwrap();
+        let unwrap_from_str = |x| -> u32 {FromStr::from_str(unwrap_get(x)).unwrap()};
+        let unwrap_from_str_f = |x| -> f32 {FromStr::from_str(unwrap_get(x)).unwrap()};
+        let unwrap_from_str_b = |x| -> bool {unwrap_from_str(x) == 1};
         General{
             audio_filename: unwrap_get("AudioFilename"),
             audio_lead_in: unwrap_from_str("AudioLeadIn"),
+            preview_time: unwrap_from_str("PreviewTime"),
+            countdown: unwrap_from_str("Countdown") == 1,
+            sample_set: unwrap_get("SampleSet"),
+            stack_leniency: unwrap_from_str_f("StackLeniency"),
             mode: unwrap_from_str("Mode"),
+            letterboxin_breaks: unwrap_from_str_b("LetterboxInBreaks"),
+            widescreen_storyboard: unwrap_from_str_b("WidescreenStoryboard"),
             ..Default::default()
         }
     }
@@ -109,6 +123,7 @@ mod tests {
         let res = parse_osu(input);
         if let Done(_, osu) = res {
             println!("{:?}", osu);
+            println!("{}", serde_json::to_string(&osu).unwrap());
         }
         else {
             println!("{:?}", res);
