@@ -7,35 +7,45 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 
-use nom::{digit, line_ending};
-use nom::IResult::Done;
-use nom::multispace;
+#[macro_use]
+extern crate from_hashmap_derive;
 
-//use std::str::FromStr;
 use std::collections::HashMap;
+use nom::{digit, line_ending, multispace};
+use nom::IResult::Done;
 
-#[derive(Debug, Serialize)]
-#[repr(C)]
-pub struct Osu<'a> {
-    version: u32,
-    general: General<'a>,
+trait FromHashMap {
+    fn from_hashmap(&HashMap<&str, &str>) -> General;
 }
 
-#[derive(Debug, PartialEq, Default, Serialize)]
-struct General<'a> {
-    audio_filename: &'a str,
+
+#[derive(Debug, Serialize)]
+pub struct Osu {
+    version: u32,
+    general: General,
+}
+
+#[derive(Debug, PartialEq, Default, Serialize, FromHashMap)]
+struct General {
+    audio_filename: String,
     audio_lead_in:  u32,
     preview_time:   u32,
     countdown:      bool,
-    sample_set:     &'a str,
+    sample_set:     String,
     stack_leniency: f32,
     mode:           u32,
-    letterboxin_breaks: bool,
+    letterbox_in_breaks: bool,
     widescreen_storyboard: bool,
 }
 
 trait FromStr : std::str::FromStr {
     fn from_str(s: &str) -> Result<Self, Self::Err>;
+}
+
+impl FromStr for String {
+    fn from_str(s: &str) -> Result<String, std::string::ParseError> {
+        Ok(s.to_owned())
+    }
 }
 
 impl FromStr for u32 {
@@ -51,7 +61,6 @@ impl FromStr for f32 {
 }
 
 impl FromStr for bool {
-    #[inline]
     fn from_str(s: &str) -> Result<bool, std::str::ParseBoolError> {
         match s {
             "1" => Ok(true),
@@ -61,32 +70,16 @@ impl FromStr for bool {
     }
 }
 
-impl<'a> General<'a> {
-    pub fn from_tuples(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
+impl General {
+    pub fn from_tuples(pairs: Vec<(&str, &str)>) -> General {
         let map: HashMap<&str, &str> = pairs.into_iter().collect();
-        let unwrap_get = |x| map.get(x).unwrap();
-        let unwrap_from_str = |x| -> u32 {FromStr::from_str(unwrap_get(x)).unwrap()};
-        let unwrap_from_str_f = |x| -> f32 {FromStr::from_str(unwrap_get(x)).unwrap()};
-        //let unwrap_from_str_b = |x| -> bool {unwrap_from_str(x) == 1};
-        let unwrap_from_str_b = |x| -> bool {FromStr::from_str(unwrap_get(x)).unwrap()};
-        General{
-            audio_filename: unwrap_get("AudioFilename"),
-            audio_lead_in: unwrap_from_str("AudioLeadIn"),
-            preview_time: unwrap_from_str("PreviewTime"),
-            countdown: FromStr::from_str(unwrap_get("Countdown")).unwrap(),
-            sample_set: unwrap_get("SampleSet"),
-            stack_leniency: unwrap_from_str_f("StackLeniency"),
-            mode: unwrap_from_str("Mode"),
-            letterboxin_breaks: unwrap_from_str_b("LetterboxInBreaks"),
-            widescreen_storyboard: unwrap_from_str_b("WidescreenStoryboard"),
-            ..Default::default()
-        }
+        General::from_hashmap(&map)
     }
 }
 
 #[derive(Debug, PartialEq, Default, Serialize)]
-struct Editor<'a> {
-    bookmarks: &'a [u32],
+struct Editor {
+    bookmarks: Vec<u32>,
     distance_spacing: f32,
     beat_divisor: u32,
     grid_size: u32,
@@ -133,17 +126,6 @@ named!(parse_osu<&str, Osu>,
         })
     )
 );
-
-#[allow(no_mangle_generic_items)]
-#[no_mangle]
-pub extern "C" fn parse_osu_file<'a>() -> *const Osu<'a> {
-    let input = include_str!("../test.osu");
-    let res = parse_osu(input);
-    match res {
-        Done(_, x) => &x,
-        _ => 0 as *const Osu,
-    }
-}
 
 #[cfg(test)]
 mod tests {
