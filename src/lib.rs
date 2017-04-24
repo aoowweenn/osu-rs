@@ -11,7 +11,7 @@ use nom::{digit, line_ending};
 use nom::IResult::Done;
 use nom::multispace;
 
-use std::str::FromStr;
+//use std::str::FromStr;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
@@ -34,18 +34,46 @@ struct General<'a> {
     widescreen_storyboard: bool,
 }
 
+trait FromStr : std::str::FromStr {
+    fn from_str(s: &str) -> Result<Self, Self::Err>;
+}
+
+impl FromStr for u32 {
+    fn from_str(s: &str) -> Result<u32, std::num::ParseIntError> {
+        std::str::FromStr::from_str(s)
+    }
+}
+
+impl FromStr for f32 {
+    fn from_str(s: &str) -> Result<f32, std::num::ParseFloatError> {
+        std::str::FromStr::from_str(s)
+    }
+}
+
+impl FromStr for bool {
+    #[inline]
+    fn from_str(s: &str) -> Result<bool, std::str::ParseBoolError> {
+        match s {
+            "1" => Ok(true),
+            "0" => Ok(false),
+            _   => std::str::FromStr::from_str(""),
+        }
+    }
+}
+
 impl<'a> General<'a> {
     pub fn from_tuples(pairs: Vec<(&'a str, &'a str)>) -> General<'a> {
         let map: HashMap<&str, &str> = pairs.into_iter().collect();
         let unwrap_get = |x| map.get(x).unwrap();
         let unwrap_from_str = |x| -> u32 {FromStr::from_str(unwrap_get(x)).unwrap()};
         let unwrap_from_str_f = |x| -> f32 {FromStr::from_str(unwrap_get(x)).unwrap()};
-        let unwrap_from_str_b = |x| -> bool {unwrap_from_str(x) == 1};
+        //let unwrap_from_str_b = |x| -> bool {unwrap_from_str(x) == 1};
+        let unwrap_from_str_b = |x| -> bool {FromStr::from_str(unwrap_get(x)).unwrap()};
         General{
             audio_filename: unwrap_get("AudioFilename"),
             audio_lead_in: unwrap_from_str("AudioLeadIn"),
             preview_time: unwrap_from_str("PreviewTime"),
-            countdown: unwrap_from_str_b("Countdown"),
+            countdown: FromStr::from_str(unwrap_get("Countdown")).unwrap(),
             sample_set: unwrap_get("SampleSet"),
             stack_leniency: unwrap_from_str_f("StackLeniency"),
             mode: unwrap_from_str("Mode"),
