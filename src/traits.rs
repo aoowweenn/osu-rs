@@ -1,7 +1,11 @@
 use std;
 
-pub trait FromHashMap {
+pub trait StructMap {
     fn from_hashmap(&std::collections::HashMap<&str, &str>) -> Self;
+    fn from_tuples(pairs: Vec<(&str, &str)>) -> Self where Self: std::marker::Sized {
+        let map: std::collections::HashMap<&str, &str> = pairs.into_iter().collect();
+        Self::from_hashmap(&map)
+    }
 }
 
 pub trait FromStr : std::str::FromStr {

@@ -8,11 +8,10 @@ extern crate serde_derive;
 extern crate nom;
 
 mod traits;
-use traits::{FromHashMap, FromStr};
+use traits::{StructMap, FromStr};
 #[macro_use]
-extern crate from_hashmap_derive;
+extern crate struct_map_derive;
 
-use std::collections::HashMap;
 use nom::{digit, line_ending, multispace};
 use nom::IResult::Done;
 
@@ -22,7 +21,7 @@ pub struct Osu {
     general: General,
 }
 
-#[derive(Debug, PartialEq, Default, Serialize, FromHashMap)]
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
 struct General {
     audio_filename: String,
     audio_lead_in:  u32,
@@ -33,13 +32,6 @@ struct General {
     mode:           u32,
     letterbox_in_breaks: bool,
     widescreen_storyboard: bool,
-}
-
-impl General {
-    pub fn from_tuples(pairs: Vec<(&str, &str)>) -> General {
-        let map: HashMap<&str, &str> = pairs.into_iter().collect();
-        General::from_hashmap(&map)
-    }
 }
 
 #[derive(Debug, PartialEq, Default, Serialize)]
@@ -65,7 +57,7 @@ named!(section_general<&str, General>,
                                 tag_s!("[General]")
            >>                   opt!(multispace)
            >> pairs_with_end:   many_till!(key_value_pair, line_ending)
-           >> (General::from_tuples(pairs_with_end.0))
+           >> (StructMap::from_tuples(pairs_with_end.0))
           )
         );
 

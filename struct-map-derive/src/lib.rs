@@ -6,18 +6,18 @@ extern crate quote;
 
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(FromHashMap)]
-pub fn from_hashmap_parser(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(StructMap)]
+pub fn struct_map_generator(input: TokenStream) -> TokenStream {
     let s = input.to_string();
     let ast = syn::parse_macro_input(&s).expect("Can't parse rust code to AST");
-    let gen = impl_from_hashmap(&ast);
+    let gen = impl_struct_map(&ast);
     gen.parse().expect("Can't generate implementation code")
 }
 
-fn impl_from_hashmap(ast: &syn::MacroInput) -> quote::Tokens {
+fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
     let fields = match ast.body {
         syn::Body::Struct(ref data) => data.fields(),
-        syn::Body::Enum(_) => panic!("#[derive(FromHashMap)] can only be used with structs"),
+        syn::Body::Enum(_) => panic!("#[derive(StructMap)] can only be used with structs"),
     };
     let field_names = fields.iter()
                             .filter_map(|field| field.ident.as_ref())
@@ -45,7 +45,7 @@ fn impl_from_hashmap(ast: &syn::MacroInput) -> quote::Tokens {
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let t = quote! {
-        impl #impl_generics FromHashMap for #name #ty_generics #where_clause {
+        impl #impl_generics StructMap for #name #ty_generics #where_clause {
             fn from_hashmap(hm: &std::collections::HashMap<&str, &str>) -> #name {
                 let unwrap_get = |x| hm.get(x).unwrap();
                 #name {

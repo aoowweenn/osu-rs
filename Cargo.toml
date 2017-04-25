@@ -11,7 +11,7 @@ version = '^2.2'
 features = ["verbose-errors"]
 
 [dependencies]
-from-hashmap-derive = { path = "from-hashmap-derive" }
+struct-map-derive = { path = "struct-map-derive" }
 serde = '^1'
 serde_derive = '^1'
 serde_json = '^1'
