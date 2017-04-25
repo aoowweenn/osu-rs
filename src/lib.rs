@@ -7,17 +7,14 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 
+mod traits;
+use traits::{FromHashMap, FromStr};
 #[macro_use]
 extern crate from_hashmap_derive;
 
 use std::collections::HashMap;
 use nom::{digit, line_ending, multispace};
 use nom::IResult::Done;
-
-trait FromHashMap {
-    fn from_hashmap(&HashMap<&str, &str>) -> General;
-}
-
 
 #[derive(Debug, Serialize)]
 pub struct Osu {
@@ -36,38 +33,6 @@ struct General {
     mode:           u32,
     letterbox_in_breaks: bool,
     widescreen_storyboard: bool,
-}
-
-trait FromStr : std::str::FromStr {
-    fn from_str(s: &str) -> Result<Self, Self::Err>;
-}
-
-impl FromStr for String {
-    fn from_str(s: &str) -> Result<String, std::string::ParseError> {
-        Ok(s.to_owned())
-    }
-}
-
-impl FromStr for u32 {
-    fn from_str(s: &str) -> Result<u32, std::num::ParseIntError> {
-        std::str::FromStr::from_str(s)
-    }
-}
-
-impl FromStr for f32 {
-    fn from_str(s: &str) -> Result<f32, std::num::ParseFloatError> {
-        std::str::FromStr::from_str(s)
-    }
-}
-
-impl FromStr for bool {
-    fn from_str(s: &str) -> Result<bool, std::str::ParseBoolError> {
-        match s {
-            "1" => Ok(true),
-            "0" => Ok(false),
-            _   => std::str::FromStr::from_str(""),
-        }
-    }
 }
 
 impl General {
