@@ -35,8 +35,7 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
         }
         Some(ss.into_iter().collect::<String>().to_owned())
     };
-    let tmp_field_names = field_names.clone();
-    let field_names_camel = tmp_field_names.iter()
+    let field_names_camel = field_names.iter()
                                        .filter_map(to_camel)
                                        .collect::<Vec<_>>();
 
@@ -47,16 +46,16 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
     let t = quote! {
         impl #impl_generics StructMap for #name #ty_generics #where_clause {
             fn from_hashmap(hm: &std::collections::HashMap<&str, &str>) -> #name {
-                let unwrap_get = |x| hm.get(x).unwrap();
+                let dummy = "";
                 #name {
-                    #(#field_names: FromStr::from_str(unwrap_get(#field_names_camel)).unwrap()),*
+                    #(#field_names: FromStr::from_str(hm.get(#field_names_camel).unwrap_or(&dummy)).unwrap_or_default()),*
                     ,..Default::default()
                 }
             }
         }
     };
 
-    println!("Debug: {}", t.as_str());
+    println!("Debug:\n{}", t.as_str());
 
     t
 }
