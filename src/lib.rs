@@ -19,22 +19,32 @@ use nom::IResult::Done;
 pub struct Osu {
     version: u32,
     general: General,
+    editor: Editor,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+enum Mode {
+    Wrong = -1,
+    Osu,
+    Taiko,
+    CatchTheBeat,
+    OsuMania,
 }
 
 #[derive(Debug, PartialEq, Default, Serialize, StructMap)]
 struct General {
     audio_filename: String,
-    audio_lead_in:  u32,
-    preview_time:   u32,
-    countdown:      bool,
-    sample_set:     String,
+    audio_lead_in: u32,
+    preview_time: u32,
+    countdown: bool,
+    sample_set: String,
     stack_leniency: f32,
-    mode:           u32,
+    mode: Mode,
     letterbox_in_breaks: bool,
     widescreen_storyboard: bool,
 }
 
-#[derive(Debug, PartialEq, Default, Serialize)]
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
 struct Editor {
     bookmarks: Vec<u32>,
     distance_spacing: f32,
@@ -66,7 +76,7 @@ named!(section_editor<&str, Editor>,
                                 tag_s!("[Editor]")
            >>                   opt!(multispace)
            >> pairs_with_end:   many_till!(key_value_pair, line_ending)
-           >> (Editor {..Default::default()})
+           >> (StructMap::from_tuples(pairs_with_end.0))
           )
         );
 
@@ -80,6 +90,7 @@ named!(parse_osu<&str, Osu>,
     >>  (Osu {
         version: version,
         general: sections.0,
+        editor:  sections.1,
         })
     )
 );
@@ -95,8 +106,7 @@ mod tests {
         if let Done(_, osu) = res {
             println!("{:?}", osu);
             println!("{}", serde_json::to_string(&osu).unwrap());
-        }
-        else {
+        } else {
             println!("{:?}", res);
             assert!(false);
         }
