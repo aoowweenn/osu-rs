@@ -84,3 +84,14 @@ impl FromStr for Vec<u32> {
         Ok(res)
     }
 }
+
+impl FromStr for Vec<String> {
+    type Err = std::string::ParseError;
+
+    fn from_str(s: &str) -> Result<Vec<String>, std::string::ParseError> {
+        let res = s.split_whitespace()
+            .filter_map(|x| Some(x.to_owned()))
+            .collect::<Vec<_>>();
+        Ok(res)
+    }
+}

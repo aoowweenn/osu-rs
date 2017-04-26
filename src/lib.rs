@@ -20,6 +20,8 @@ pub struct Osu {
     version: u32,
     general: General,
     editor: Editor,
+    metadata: Metadata,
+    difficulty: Difficulty,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -53,6 +55,31 @@ struct Editor {
     timeline_zoom: f32,
 }
 
+#[allow(non_snake_case)]
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
+struct Metadata {
+    title: String,
+    title_unicode: String,
+    artist: String,
+    artist_unicode: String,
+    creator: String,
+    version: String,
+    source: String,
+    tags: Vec<String>,
+    beatmap_ID: u32,
+    beatmap_set_ID: u32,
+}
+
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
+struct Difficulty {
+    hp_drain_rate: f32,
+    circle_size: f32,
+    overall_difficulty: f32,
+    approach_rate: f32,
+    slider_multiplier: f32,
+    slider_tickrate: f32,
+}
+
 named!(key_value_pair<&str, (&str, &str)>,
     do_parse!(
            key: take_until_and_consume_s!(":")
@@ -62,23 +89,23 @@ named!(key_value_pair<&str, (&str, &str)>,
     )
 );
 
-named!(section_general<&str, General>,
+macro_rules! named_section {
+    ( $func:ident<$T:ty> ) => (
+named!($func<&str, $T>,
         do_parse!(
-                                tag_s!("[General]")
+                                tag_s!(concat!("[", stringify!($T), "]"))
            >>                   opt!(multispace)
            >> pairs_with_end:   many_till!(key_value_pair, line_ending)
            >> (StructMap::from_tuples(pairs_with_end.0))
           )
         );
+    )
+}
 
-named!(section_editor<&str, Editor>,
-        do_parse!(
-                                tag_s!("[Editor]")
-           >>                   opt!(multispace)
-           >> pairs_with_end:   many_till!(key_value_pair, line_ending)
-           >> (StructMap::from_tuples(pairs_with_end.0))
-          )
-        );
+named_section!(section_general<General>);
+named_section!(section_editor<Editor>);
+named_section!(section_metadata<Metadata>);
+named_section!(section_difficulty<Difficulty>);
 
 named!(parse_osu<&str, Osu>, 
     do_parse!(
@@ -86,11 +113,16 @@ named!(parse_osu<&str, Osu>,
     >>  version:    map_res!(digit, FromStr::from_str)
     >>              line_ending
     >>              opt!(multispace)
-    >>  sections:   permutation!(call!(section_general), call!(section_editor))
+    >>  sections:   permutation!(call!(section_general),
+                                 call!(section_editor),
+                                 call!(section_metadata),
+                                 call!(section_difficulty))
     >>  (Osu {
-        version: version,
-        general: sections.0,
-        editor:  sections.1,
+        version:    version,
+        general:    sections.0,
+        editor:     sections.1,
+        metadata:   sections.2,
+        difficulty: sections.3,
         })
     )
 );
