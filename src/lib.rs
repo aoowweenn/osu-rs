@@ -22,6 +22,7 @@ pub struct Osu {
     editor: Editor,
     metadata: Metadata,
     difficulty: Difficulty,
+    events: Events,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -80,11 +81,41 @@ struct Difficulty {
     slider_tickrate: f32,
 }
 
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct Events {
+    background: String,
+    video: String,
+    //break_periods: Vec<u32>,
+}
+
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct TimingPoints {
+    tps: Vec<TimingPoint>,
+}
+
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct TimingPoint {
+    offset: u32,
+    msec_per_beat: f32,
+    meter: u32,
+    sample_type: u32,
+    sample_set: u32,
+    volume: u32,
+    inherited: bool, // 1 => false, 0 => true
+    kiai_mode: bool,
+}
+
+named!(comment<&str, Vec<()> >,
+    many0!(do_parse!(tag!("//") >> take_until_and_consume_s!("\r\n") >> ()))
+);
+
 named!(key_value_pair<&str, (&str, &str)>,
     do_parse!(
-           key: take_until_and_consume_s!(":")
-        >> opt!(multispace)
+                comment
+        >> key: take_until_and_consume_s!(":")
+        >>      opt!(multispace)
         >> val: take_until_and_consume_s!("\r\n")
+        >>      comment
         >> (key, val)
     )
 );
@@ -107,6 +138,26 @@ named_section!(section_editor<Editor>);
 named_section!(section_metadata<Metadata>);
 named_section!(section_difficulty<Difficulty>);
 
+named!(section_events<&str, Events>,
+    do_parse!(
+                    tag_s!("[Events]")
+        >>          opt!(multispace)
+        >>          comment
+        >> bg_ev:   separated_list!(char!(','), take_until_either!(",\r"))
+        >>          line_ending
+        >>          comment
+        >>          tag_s!("Video,")
+        >> mov_ev:  separated_list!(char!(','), take_until_either!(",\r"))
+        >>          line_ending
+        >>          take_until_s!("[")
+        >> (Events {
+            background: bg_ev[2].trim_matches('"').to_owned(),
+            video: mov_ev[1].trim_matches('"').to_owned(),
+            ..Default::default()
+        })
+    )
+);
+
 named!(parse_osu<&str, Osu>, 
     do_parse!(
                     tag_s!("osu file format v")
@@ -116,13 +167,15 @@ named!(parse_osu<&str, Osu>,
     >>  sections:   permutation!(call!(section_general),
                                  call!(section_editor),
                                  call!(section_metadata),
-                                 call!(section_difficulty))
+                                 call!(section_difficulty),
+                                 call!(section_events))
     >>  (Osu {
         version:    version,
         general:    sections.0,
         editor:     sections.1,
         metadata:   sections.2,
         difficulty: sections.3,
+        events:     sections.4,
         })
     )
 );
