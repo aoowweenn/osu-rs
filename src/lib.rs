@@ -23,6 +23,8 @@ pub struct Osu {
     metadata: Metadata,
     difficulty: Difficulty,
     events: Events,
+    timing_points: Vec<TimingPoint>,
+    colours: Vec<Colour>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -89,11 +91,6 @@ struct Events {
 }
 
 #[derive(Debug, PartialEq, Default, Serialize)]
-struct TimingPoints {
-    tps: Vec<TimingPoint>,
-}
-
-#[derive(Debug, PartialEq, Default, Serialize)]
 struct TimingPoint {
     offset: u32,
     msec_per_beat: f32,
@@ -101,8 +98,21 @@ struct TimingPoint {
     sample_type: u32,
     sample_set: u32,
     volume: u32,
-    inherited: bool, // 1 => false, 0 => true
+    inherited: bool,
     kiai_mode: bool,
+}
+
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct Colour {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
+
+impl Colour {
+    fn from_vec(v: Vec<u32>) -> Colour {
+        Colour { red: v[0] as u8, green: v[1] as u8, blue: v[2] as u8 }
+    }
 }
 
 named!(comment<&str, Vec<()> >,
@@ -111,11 +121,9 @@ named!(comment<&str, Vec<()> >,
 
 named!(key_value_pair<&str, (&str, &str)>,
     do_parse!(
-                comment
-        >> key: take_until_and_consume_s!(":")
+           key: take_until_and_consume_s!(":")
         >>      opt!(multispace)
         >> val: take_until_and_consume_s!("\r\n")
-        >>      comment
         >> (key, val)
     )
 );
@@ -151,10 +159,54 @@ named!(section_events<&str, Events>,
         >>          line_ending
         >>          take_until_s!("[")
         >> (Events {
-            background: bg_ev[2].trim_matches('"').to_owned(),
-            video: mov_ev[1].trim_matches('"').to_owned(),
+            background: if bg_ev.len() == 5 { bg_ev[2].trim_matches('"').to_owned() } else { "".to_owned() },
+            video: if mov_ev.len() == 2 { mov_ev[1].trim_matches('"').to_owned() } else { "".to_owned() },
             ..Default::default()
         })
+    )
+);
+
+named!(parse_timing_point<&str, TimingPoint>,
+    do_parse!(
+           line: separated_nonempty_list!(char!(','), take_until_either!(",\r"))
+        >>       line_ending
+        >> (TimingPoint {
+                offset: FromStr::from_str(line[0]).unwrap(),
+                msec_per_beat: FromStr::from_str(line[1]).unwrap(),
+                meter: FromStr::from_str(line[2]).unwrap(),
+                sample_type: FromStr::from_str(line[3]).unwrap(),
+                sample_set: FromStr::from_str(line[4]).unwrap(),
+                volume: FromStr::from_str(line[5]).unwrap(),
+                inherited: u32::from_str(line[6]).unwrap() == 1,
+                kiai_mode: u32::from_str(line[7]).unwrap() == 1,
+        })
+    )
+);
+
+named!(section_timing_points<&str, Vec<TimingPoint> >,
+    do_parse!(
+                            tag_s!("[TimingPoints]")
+        >>                  opt!(multispace)
+        >> tps_with_end:    many_till!(parse_timing_point, line_ending)
+        >>                  take_until_s!("[")
+        >> (tps_with_end.0)
+    )
+);
+
+named!(parse_colour<&str, Colour>,
+    do_parse!(
+           pair:    key_value_pair
+        >> (Colour::from_vec(FromStr::from_str(pair.1).unwrap()))
+    )
+);
+
+named!(section_colours<&str, Vec<Colour> >,
+    do_parse!(
+                            tag_s!("[Colours]")
+        >>                  opt!(multispace)
+        >> cs_with_end:     many_till!(parse_colour, line_ending)
+        >>                  take_until_s!("[")
+        >> (cs_with_end.0)
     )
 );
 
@@ -168,14 +220,19 @@ named!(parse_osu<&str, Osu>,
                                  call!(section_editor),
                                  call!(section_metadata),
                                  call!(section_difficulty),
-                                 call!(section_events))
+                                 call!(section_events),
+                                 call!(section_timing_points),
+                                 call!(section_colours)
+                                 )
     >>  (Osu {
-        version:    version,
-        general:    sections.0,
-        editor:     sections.1,
-        metadata:   sections.2,
-        difficulty: sections.3,
-        events:     sections.4,
+        version:        version,
+        general:        sections.0,
+        editor:         sections.1,
+        metadata:       sections.2,
+        difficulty:     sections.3,
+        events:         sections.4,
+        timing_points:  sections.5,
+        colours:        sections.6,
         })
     )
 );
