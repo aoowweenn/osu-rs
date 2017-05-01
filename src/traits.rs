@@ -2,6 +2,7 @@ use std;
 
 pub trait StructMap {
     fn from_hashmap(&std::collections::HashMap<&str, &str>) -> Self;
+    fn from_vec(v: Vec<&str>) -> Self;
     fn from_tuples(pairs: Vec<(&str, &str)>) -> Self
         where Self: std::marker::Sized
     {

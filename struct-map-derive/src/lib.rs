@@ -19,9 +19,11 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
         syn::Body::Struct(ref data) => data.fields(),
         syn::Body::Enum(_) => panic!("#[derive(StructMap)] can only be used with structs"),
     };
-    let field_names = fields.iter()
+    let field_indices = 0..fields.len();
+    let ref field_names = fields.iter()
                             .filter_map(|field| field.ident.as_ref())
                             .collect::<Vec<_>>();
+    let field_names_copy = field_names;
 
     let to_camel = |iden: &&syn::Ident| -> Option<String> {
         let name = iden.as_ref();
@@ -50,6 +52,11 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
                 #name {
                     #(#field_names: FromStr::from_str(hm.get(#field_names_camel).unwrap_or(&dummy)).unwrap_or_default()),*
                     ,..Default::default()
+                }
+            }
+            fn from_vec(v: Vec<&str>) -> #name {
+                #name {
+                    #(#field_names_copy: FromStr::from_str(v[#field_indices]).unwrap_or_default()),*
                 }
             }
         }

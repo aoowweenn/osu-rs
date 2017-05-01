@@ -90,7 +90,7 @@ struct Events {
     //break_periods: Vec<u32>,
 }
 
-#[derive(Debug, PartialEq, Default, Serialize)]
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
 struct TimingPoint {
     offset: u32,
     msec_per_beat: f32,
@@ -133,7 +133,7 @@ macro_rules! named_section {
 named!($func<&str, $T>,
         do_parse!(
                                 tag_s!(concat!("[", stringify!($T), "]"))
-           >>                   opt!(multispace)
+           >>                   line_ending
            >> pairs_with_end:   many_till!(key_value_pair, line_ending)
            >> (StructMap::from_tuples(pairs_with_end.0))
           )
@@ -146,21 +146,26 @@ named_section!(section_editor<Editor>);
 named_section!(section_metadata<Metadata>);
 named_section!(section_difficulty<Difficulty>);
 
+named!(line_vec<&str, Vec<&str> >,
+    do_parse!(
+           v: separated_list!(char!(','), take_until_either!(",\r"))
+        >>    line_ending
+        >> (v)
+    )
+);
+
 named!(section_events<&str, Events>,
     do_parse!(
                     tag_s!("[Events]")
-        >>          opt!(multispace)
-        >>          comment
-        >> bg_ev:   separated_list!(char!(','), take_until_either!(",\r"))
         >>          line_ending
         >>          comment
-        >>          tag_s!("Video,")
-        >> mov_ev:  separated_list!(char!(','), take_until_either!(",\r"))
-        >>          line_ending
+        >> bg_ev:   line_vec
+        >>          comment
+        >> mov_ev:  line_vec
         >>          take_until_s!("[")
         >> (Events {
             background: if bg_ev.len() == 5 { bg_ev[2].trim_matches('"').to_owned() } else { "".to_owned() },
-            video: if mov_ev.len() == 2 { mov_ev[1].trim_matches('"').to_owned() } else { "".to_owned() },
+            video: if mov_ev.len() == 3 { mov_ev[2].trim_matches('"').to_owned() } else { "".to_owned() },
             ..Default::default()
         })
     )
@@ -168,25 +173,15 @@ named!(section_events<&str, Events>,
 
 named!(parse_timing_point<&str, TimingPoint>,
     do_parse!(
-           line: separated_nonempty_list!(char!(','), take_until_either!(",\r"))
-        >>       line_ending
-        >> (TimingPoint {
-                offset: FromStr::from_str(line[0]).unwrap(),
-                msec_per_beat: FromStr::from_str(line[1]).unwrap(),
-                meter: FromStr::from_str(line[2]).unwrap(),
-                sample_type: FromStr::from_str(line[3]).unwrap(),
-                sample_set: FromStr::from_str(line[4]).unwrap(),
-                volume: FromStr::from_str(line[5]).unwrap(),
-                inherited: u32::from_str(line[6]).unwrap() == 1,
-                kiai_mode: u32::from_str(line[7]).unwrap() == 1,
-        })
+           line: line_vec
+        >> (StructMap::from_vec(line))
     )
 );
 
 named!(section_timing_points<&str, Vec<TimingPoint> >,
     do_parse!(
                             tag_s!("[TimingPoints]")
-        >>                  opt!(multispace)
+        >>                  line_ending
         >> tps_with_end:    many_till!(parse_timing_point, line_ending)
         >>                  take_until_s!("[")
         >> (tps_with_end.0)
@@ -203,7 +198,7 @@ named!(parse_colour<&str, Colour>,
 named!(section_colours<&str, Vec<Colour> >,
     do_parse!(
                             tag_s!("[Colours]")
-        >>                  opt!(multispace)
+        >>                  line_ending
         >> cs_with_end:     many_till!(parse_colour, line_ending)
         >>                  take_until_s!("[")
         >> (cs_with_end.0)
