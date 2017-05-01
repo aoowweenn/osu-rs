@@ -25,6 +25,14 @@ impl FromStr for String {
     }
 }
 
+impl FromStr for u8 {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<u8, std::num::ParseIntError> {
+        std::str::FromStr::from_str(s)
+    }
+}
+
 impl FromStr for u32 {
     type Err = std::num::ParseIntError;
 

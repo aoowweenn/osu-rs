@@ -45,7 +45,7 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
 
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
-    let t = quote! {
+    quote! {
         impl #impl_generics StructMap for #name #ty_generics #where_clause {
             fn from_hashmap(hm: &std::collections::HashMap<&str, &str>) -> #name {
                 let dummy = "";
@@ -60,9 +60,5 @@ fn impl_struct_map(ast: &syn::MacroInput) -> quote::Tokens {
                 }
             }
         }
-    };
-
-    println!("Debug:\n{}", t.as_str());
-
-    t
+    }
 }

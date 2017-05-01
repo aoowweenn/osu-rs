@@ -13,7 +13,9 @@ use traits::{StructMap, FromStr};
 extern crate struct_map_derive;
 
 use nom::{digit, line_ending, multispace};
-use nom::IResult::Done;
+use nom::Needed;
+use nom::IResult;
+use nom::IResult::{Done, Incomplete};
 
 #[derive(Debug, Serialize)]
 pub struct Osu {
@@ -25,6 +27,7 @@ pub struct Osu {
     events: Events,
     timing_points: Vec<TimingPoint>,
     colours: Vec<Colour>,
+    hit_objects: Vec<HitObj>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -86,7 +89,7 @@ struct Difficulty {
 #[derive(Debug, PartialEq, Default, Serialize)]
 struct Events {
     background: String,
-    video: String,
+    video: String, 
     //break_periods: Vec<u32>,
 }
 
@@ -102,17 +105,22 @@ struct TimingPoint {
     kiai_mode: bool,
 }
 
-#[derive(Debug, PartialEq, Default, Serialize)]
+#[derive(Debug, PartialEq, Default, Serialize, StructMap)]
 struct Colour {
     red: u8,
     green: u8,
     blue: u8,
 }
 
-impl Colour {
-    fn from_vec(v: Vec<u32>) -> Colour {
-        Colour { red: v[0] as u8, green: v[1] as u8, blue: v[2] as u8 }
-    }
+#[derive(Debug, PartialEq, Default, Serialize)]
+struct HitObj {
+    x: u32,
+    y: u32,
+    time: u32,
+    ty: u32,
+    hit_sound: u32,
+    time_len: f32,
+    time_end: u32,
 }
 
 named!(comment<&str, Vec<()> >,
@@ -173,8 +181,8 @@ named!(section_events<&str, Events>,
 
 named!(parse_timing_point<&str, TimingPoint>,
     do_parse!(
-           line: line_vec
-        >> (StructMap::from_vec(line))
+           v: line_vec
+        >> (StructMap::from_vec(v))
     )
 );
 
@@ -191,7 +199,7 @@ named!(section_timing_points<&str, Vec<TimingPoint> >,
 named!(parse_colour<&str, Colour>,
     do_parse!(
            pair:    key_value_pair
-        >> (Colour::from_vec(FromStr::from_str(pair.1).unwrap()))
+        >> (StructMap::from_vec(pair.1.split(',').collect()))
     )
 );
 
@@ -202,6 +210,58 @@ named!(section_colours<&str, Vec<Colour> >,
         >> cs_with_end:     many_till!(parse_colour, line_ending)
         >>                  take_until_s!("[")
         >> (cs_with_end.0)
+    )
+);
+
+fn parse_hit_obj(input: &str) -> IResult<&str, HitObj> {
+    if let Done(offset, v) = line_vec(input) {
+        let ret = match u32::from_str(v[3]).unwrap_or_default() {
+            x if x & 0x1 != 0 => {
+                HitObj {
+                    x: FromStr::from_str(v[0]).unwrap(),
+                    y: FromStr::from_str(v[1]).unwrap(),
+                    time: FromStr::from_str(v[2]).unwrap(),
+                    ty: FromStr::from_str(v[3]).unwrap(),
+                    hit_sound: FromStr::from_str(v[4]).unwrap(),
+                    ..Default::default()
+                }
+            }
+            y if y & 0x2 != 0 => {
+                HitObj {
+                    x: FromStr::from_str(v[0]).unwrap(),
+                    y: FromStr::from_str(v[1]).unwrap(),
+                    time: FromStr::from_str(v[2]).unwrap(),
+                    ty: FromStr::from_str(v[3]).unwrap(),
+                    hit_sound: FromStr::from_str(v[4]).unwrap(),
+                    time_len: FromStr::from_str(v[7]).unwrap(),
+                    ..Default::default()
+                }
+            }
+            z if z & 0x8 != 0 => {
+                HitObj {
+                    x: FromStr::from_str(v[0]).unwrap(),
+                    y: FromStr::from_str(v[1]).unwrap(),
+                    time: FromStr::from_str(v[2]).unwrap(),
+                    ty: FromStr::from_str(v[3]).unwrap(),
+                    hit_sound: FromStr::from_str(v[4]).unwrap(),
+                    time_end: FromStr::from_str(v[5]).unwrap(),
+                    ..Default::default()
+                }
+            }
+            _ => HitObj { ..Default::default() },
+        };
+        Done(offset, ret)
+    } else {
+        Incomplete(Needed::Unknown)
+    }
+}
+
+named!(section_hit_objects<&str, Vec<HitObj> >,
+    do_parse!(
+                    tag_s!("[HitObjects]")
+        >>          line_ending
+        >> hbs:     many1!(parse_hit_obj)
+        >> (hbs)
     )
 );
 
@@ -217,7 +277,8 @@ named!(parse_osu<&str, Osu>,
                                  call!(section_difficulty),
                                  call!(section_events),
                                  call!(section_timing_points),
-                                 call!(section_colours)
+                                 call!(section_colours),
+                                 call!(section_hit_objects)
                                  )
     >>  (Osu {
         version:        version,
@@ -228,6 +289,7 @@ named!(parse_osu<&str, Osu>,
         events:         sections.4,
         timing_points:  sections.5,
         colours:        sections.6,
+        hit_objects:    sections.7,
         })
     )
 );
